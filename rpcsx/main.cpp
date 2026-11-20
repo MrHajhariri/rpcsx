@@ -45,6 +45,7 @@
 #include <ucontext.h>
 
 #include <atomic>
+#include <cstring>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
@@ -52,6 +53,7 @@
 
 static int g_gpuPid;
 extern bool allowMonoDebug;
+static bool g_fwBootMode = false;
 
 __attribute__((no_stack_protector)) static void
 handle_signal(int sig, siginfo_t *info, void *ucontext) {
@@ -768,6 +770,7 @@ static void usage(const char *argv0) {
       "    --gpu <index> - specify physical gpu index to use, default is 0");
   std::println("    --disable-cache - disable cache of gpu resources");
   std::println("    --dev-mode - enable development mode (isDevelopmentMode returns 1)");
+  std::println("    --fw-boot - full PS4 firmware boot (launch system daemons from firmware)");
   // std::println("    --presenter <window>");
   std::println("    --trace");
 }
@@ -971,6 +974,15 @@ int main(int argc, const char *argv[]) {
       argIndex++;
       isSafeMode = true;
       asRoot = true;
+      continue;
+    }
+
+    if (argv[argIndex] == std::string_view("--fw-boot")) {
+      argIndex++;
+      g_fwBootMode = true;
+      isSystem = true;
+      asRoot = true;
+      std::println("Full PS4 firmware boot mode enabled");
       continue;
     }
 
@@ -1300,6 +1312,41 @@ int main(int argc, const char *argv[]) {
   orbis::g_context->regMgrInt[0x2860300] = 0; // Arcade mode
   orbis::g_context->regMgrInt[0x7010000] = 0; // auto login
   orbis::g_context->regMgrInt[0x9010000] = 0; // video out color effect
+
+  // Full PS4 firmware boot mode: scan mounted firmware for system ELFs
+  // and launch them as daemons before the main executable.
+  static bool g_fwBootMode = false;
+
+  if (g_fwBootMode && !guestArgv.empty() && guestArgv[0] == "/mini-syscore.elf") {
+    // Scan for system ELFs in the mounted firmware and launch them as daemons.
+    // Common PS4 system daemon paths (adjust based on your firmware layout).
+    const std::vector<std::string> systemDaemons = {
+        "/system/sys/orbis_audiod.elf",
+        "/system/sys/orbis_vsh.elf",
+        "/system/sys/orbis_shell.elf",
+        "/system/sys/orbis_settings.elf",
+        "/system/sys/orbis_store.elf",
+        "/system/sys/orbis_friends.elf",
+        "/system/sys/orbis_notifications.elf",
+        "/system/sys/orbis_trophy.elf",
+        "/system/sys/orbis_msg.elf",
+        "/system/sys/orbis_party.elf",
+    };
+
+    for (const auto &daemonPath : systemDaemons) {
+      if (vfs::exists(daemonPath, mainThread)) {
+        std::println("FW Boot: launching daemon {}", daemonPath);
+        auto daemonArgv = std::vector<std::string>{daemonPath};
+        auto daemonEnv = std::vector<std::string>{};
+        auto appInfo = orbis::AppInfoEx{};
+        std::strncpy(appInfo.titleId, "FWDAEMON", sizeof(appInfo.titleId));
+        appInfo.unk4 = orbis::slong(0x80000000'00000000);
+        // Launch daemon in background; ignore failures so boot continues.
+        (void)launchDaemon(mainThread, daemonPath, daemonArgv, daemonEnv,
+                           appInfo);
+      }
+    }
+  }
 
   if (!isSystem) {
     ipmi::createMiniSysCoreObjects(initProcess);
