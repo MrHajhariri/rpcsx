@@ -1,0 +1,347 @@
+name: Release
+
+# Builds RPCSX and publishes a GitHub Release with the binaries attached.
+#
+# Triggers:
+#   * push of a tag matching "v*" or "nightly*" -> release for that tag
+#   * manual run (workflow_dispatch)            -> updates the rolling "nightly"
+#     prerelease, or creates the tag given in the "tag" input
+#
+# To publish automatically every night, add a schedule trigger:
+#
+#   schedule:
+#     - cron: '0 4 * * *'
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "nightly*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag. Leave empty to update the rolling 'nightly' prerelease."
+        required: false
+        default: ""
+      with_android:
+        description: "Also build and attach the Android native libraries"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    name: Release metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Resolve tag
+        id: meta
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+            if [ -z "$tag" ]; then
+              tag="nightly"
+            fi
+          else
+            tag="$GITHUB_REF_NAME"
+          fi
+
+          prerelease="false"
+          case "$tag" in
+            nightly|nightly-*|*-rc[0-9]*|*-alpha*|*-beta*|*-pre*)
+              prerelease="true" ;;
+          esac
+
+          {
+            echo "tag=$tag"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Release tag: $tag (prerelease: $prerelease)"
+
+  build-linux:
+    name: Linux x86_64
+    needs: meta
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libunwind-dev \
+            libsox-dev g++-14 ccache ninja-build libasound2-dev nasm libudev-dev \
+            libxcb1-dev libx11-dev libwayland-dev libxkbcommon-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxi-dev libxext-dev libvulkan-dev
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-linux-x86_64-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-x86_64-
+
+      - name: Configure
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=g++-14
+
+      - name: Build
+        run: cmake --build build -j$(( $(nproc) + 2 ))
+
+      - name: Smoke test
+        run: ./build/bin/rpcsx --version
+
+      - name: Package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          stage="dist/rpcsx"
+          mkdir -p "$stage/bin"
+
+          # rpcsx and the helper tools that get an explicit output directory.
+          cp -a build/bin/. "$stage/bin/"
+
+          # Tools that are built but not routed to build/bin.
+          for tool in build/tools/shader-tool/shader-tool build/tools/spv-gen/spv-gen; do
+            if [ -f "$tool" ]; then
+              cp -a "$tool" "$stage/bin/"
+            fi
+          done
+
+          strip --strip-unneeded "$stage"/bin/* || true
+
+          cp .github/USAGE.md "$stage/USAGE.md"
+          cp .github/BUILDING.md "$stage/BUILDING.md"
+          cp LICENSE "$stage/LICENSE"
+          if [ -f .rx.version ]; then
+            cp .rx.version "$stage/VERSION"
+          fi
+
+          # Record the runtime libraries, so users can check up front whether
+          # their system is able to run the build.
+          {
+            echo "bin/rpcsx:"
+            echo
+            ldd "$stage/bin/rpcsx" || true
+          } > "$stage/ldd.txt"
+
+          tag="$RELEASE_TAG"
+          tar -C dist -czf "rpcsx-linux-x86_64-${tag}.tar.gz" rpcsx
+
+          # Release notes, also used as the body of the GitHub release.
+          {
+            echo "## RPCSX ${tag}"
+            echo
+            echo "- Commit: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+            echo "- Built: $(date -u +'%Y-%m-%d %H:%M:%S UTC') on ubuntu-24.04 (x86_64)"
+            echo "- Toolchain: g++-14, CMake Release build"
+            echo
+            echo "### Version"
+            echo
+            echo '```'
+            cat "$stage/VERSION" 2>/dev/null || echo "unknown"
+            echo '```'
+            echo
+            echo "### Contents"
+            echo
+            echo '```'
+            (cd "$stage" && find bin -type f -printf '%p\n' | LC_ALL=C sort)
+            echo '```'
+            echo
+            echo "### Runtime dependencies"
+            echo
+            echo '```'
+            cat "$stage/ldd.txt"
+            echo '```'
+            echo
+            echo "### Usage"
+            echo
+            echo '```sh'
+            echo "tar -xzf rpcsx-linux-x86_64-${tag}.tar.gz"
+            echo "./rpcsx/bin/rpcsx --version"
+            echo "./rpcsx/bin/rpcsx --mount \"<path to fw>/system\" /system \\"
+            echo "  --mount \"<path to game root>\" /app0 /app0/game.elf"
+            echo '```'
+            echo
+            echo "See \`USAGE.md\` inside the archive for details. Firmware and games are"
+            echo "**not** included - dump them from your own console."
+          } > notes.md
+
+          echo "::group::Release notes"
+          cat notes.md
+          echo "::endgroup::"
+
+          ls -l
+          du -sh "rpcsx-linux-x86_64-${tag}.tar.gz"
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpcsx-linux-x86_64
+          path: |
+            rpcsx-linux-x86_64-*.tar.gz
+            notes.md
+          if-no-files-found: error
+
+  build-android:
+    name: Android ${{ matrix.abi }} ${{ matrix.arch }}
+    # Skip only when the manual run explicitly asked for no Android build.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.with_android }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            arch: armv8-a
+          - abi: arm64-v8a
+            arch: armv8.1-a
+          - abi: arm64-v8a
+            arch: armv8.2-a
+          - abi: arm64-v8a
+            arch: armv8.4-a
+          - abi: arm64-v8a
+            arch: armv8.5-a
+          - abi: arm64-v8a
+            arch: armv9-a
+          - abi: arm64-v8a
+            arch: armv9.1-a
+          - abi: x86_64
+            arch: x86-64
+
+    env:
+      NDK_VERSION: "29.0.13113456"
+      CMAKE_VERSION: "3.31.6"
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-android-${{ matrix.abi }}-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-android-${{ matrix.abi }}-${{ matrix.arch }}-
+            ccache-android-
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install packages
+        run: yes | sdkmanager "cmake;${{ env.CMAKE_VERSION }}" "ndk;${{ env.NDK_VERSION }}"
+
+      - name: Configure
+        run: |
+          $ANDROID_SDK_ROOT/cmake/${{ env.CMAKE_VERSION }}/bin/cmake \
+          -B build -S android -DANDROID_ABI=${{ matrix.abi }} \
+          -DUSE_ARCH=${{ matrix.arch }} \
+          -DANDROID_PLATFORM=android-29 \
+          -DANDROID_NDK=$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }} \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}/build/cmake/android.toolchain.cmake \
+          -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+      - name: Build
+        run: |
+          $ANDROID_SDK_ROOT/cmake/${{ env.CMAKE_VERSION }}/bin/cmake --build build
+          $ANDROID_SDK_ROOT/ndk/${{ env.NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip build/librpcsx-android.so
+          mv build/librpcsx-android.so librpcsx-android-${{ matrix.abi }}-${{ matrix.arch }}.so
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpcsx-android-${{ matrix.abi }}-${{ matrix.arch }}
+          path: librpcsx-android-*.so
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    # The Linux build is the release itself; Android assets are best effort,
+    # so an Android failure must not block publishing.
+    needs: [meta, build-linux, build-android]
+    if: ${{ !cancelled() && needs.build-linux.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: rpcsx-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd assets
+          find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.so" \) \
+            -printf "%P\n" | LC_ALL=C sort | xargs -r sha256sum > SHA256SUMS.txt
+          echo "::group::Assets"
+          ls -l
+          echo "::endgroup::"
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: RPCSX ${{ needs.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: assets/notes.md
+          prerelease: ${{ needs.meta.outputs.prerelease }}
+          make_latest: ${{ needs.meta.outputs.prerelease == 'false' }}
+          files: |
+            assets/*.tar.gz
+            assets/*.so
+            assets/SHA256SUMS.txt

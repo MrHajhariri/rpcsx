@@ -1,0 +1,142 @@
+[submodule "3rdparty/xbyak"]
+	path = 3rdparty/xbyak
+	url = https://github.com/RPCSX/xbyak.git
+[submodule "3rdparty/SPIRV-Tools"]
+	path = 3rdparty/SPIRV-Tools
+	url = https://github.com/RPCSX/SPIRV-Tools.git
+[submodule "3rdparty/SPIRV-Headers"]
+	path = 3rdparty/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
+[submodule "3rdparty/SPIRV-Cross"]
+	path = 3rdparty/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+[submodule "3rdparty/glslang"]
+	path = 3rdparty/glslang
+	url = https://github.com/KhronosGroup/glslang.git
+[submodule "3rdparty/json"]
+	path = 3rdparty/json
+	url = https://github.com/nlohmann/json.git
+[submodule "3rdparty/FFmpeg"]
+	path = 3rdparty/FFmpeg
+	url = https://github.com/FFmpeg/FFmpeg.git
+[submodule "3rdparty/LibAtrac9"]
+	path = 3rdparty/LibAtrac9
+	url = https://github.com/RPCSX/LibAtrac9.git
+[submodule "rpcs3/rpcs3-ffmpeg"]
+	path = rpcs3/3rdparty/ffmpeg
+	url = https://github.com/RPCS3/ffmpeg-core.git
+	ignore = dirty
+[submodule "rpcs3/asmjit"]
+	path = 3rdparty/asmjit/asmjit
+	url = https://github.com/asmjit/asmjit.git
+	branch = master
+	ignore = dirty
+[submodule "rpcs3/3rdparty/llvm/llvm"]
+	path = 3rdparty/llvm/llvm
+	url = https://github.com/llvm/llvm-project.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/zlib"]
+	path = 3rdparty/zlib/zlib
+	url = https://github.com/madler/zlib
+	ignore = dirty
+[submodule "rpcs3/3rdparty/hidapi"]
+	path = 3rdparty/hidapi/hidapi
+	url = https://github.com/RPCS3/hidapi.git
+	branch = master
+	ignore = dirty
+[submodule "rpcs3/3rdparty/pugixml"]
+	path = 3rdparty/pugixml
+	url = ../../zeux/pugixml.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/yaml-cpp"]
+	path = 3rdparty/yaml-cpp/yaml-cpp
+	url = https://github.com/RPCS3/yaml-cpp.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/libpng"]
+	path = 3rdparty/libpng/libpng
+	url = https://github.com/glennrp/libpng.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/libusb"]
+	path = 3rdparty/libusb/libusb
+	url = https://github.com/libusb/libusb.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/FAudio"]
+	path = 3rdparty/FAudio
+	url = https://github.com/FNA-XNA/FAudio.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/curl"]
+	path = 3rdparty/curl/curl
+	url = https://github.com/curl/curl.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/wolfssl"]
+	path = 3rdparty/wolfssl/wolfssl
+	url = https://github.com/wolfSSL/wolfssl.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/flatbuffers"]
+	path = 3rdparty/flatbuffers
+	url = https://github.com/google/flatbuffers.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/cubeb/cubeb"]
+	path = 3rdparty/cubeb/cubeb
+	url = https://github.com/mozilla/cubeb.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/SoundTouch/soundtouch"]
+	path = 3rdparty/SoundTouch/soundtouch
+	url = https://github.com/RPCS3/soundtouch.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/libsdl-org/SDL"]
+	path = 3rdparty/libsdl-org/SDL
+	url = ../../libsdl-org/SDL.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/miniupnp/miniupnp"]
+	path = 3rdparty/miniupnp/miniupnp
+	url = ../../miniupnp/miniupnp.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/rtmidi/rtmidi"]
+	path = 3rdparty/rtmidi/rtmidi
+	url = https://github.com/thestk/rtmidi
+	ignore = dirty
+[submodule "rpcs3/3rdparty/zstd/zstd"]
+	path = 3rdparty/zstd/zstd
+	url = https://github.com/facebook/zstd
+	ignore = dirty
+[submodule "rpcs3/3rdparty/7zip/7zip"]
+	path = 3rdparty/7zip/7zip
+	url = https://github.com/ip7z/7zip.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/OpenAL/openal-soft"]
+	path = 3rdparty/OpenAL/openal-soft
+	url = https://github.com/kcat/openal-soft.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/stblib/stb"]
+	path = 3rdparty/stblib/stb
+	url = https://github.com/nothings/stb.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/opencv/opencv"]
+	path = 3rdparty/opencv/opencv
+	url = https://github.com/Megamouse/opencv_minimal.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/fusion/fusion"]
+	path = 3rdparty/fusion/fusion
+	url = https://github.com/xioTechnologies/Fusion.git
+	ignore = dirty
+[submodule "rpcs3/3rdparty/discord-rpc/discord-rpc"]
+	path = rpcs3/3rdparty/discord-rpc/discord-rpc
+	url = https://github.com/Vestrel/discord-rpc
+	ignore = dirty
+[submodule "rpcs3/3rdparty/GPUOpen/VulkanMemoryAllocator"]
+	path = 3rdparty/GPUOpen/VulkanMemoryAllocator
+	url = https://github.com/Megamouse/VulkanMemoryAllocator.git
+	ignore = dirty
+[submodule "3rdparty/Vulkan-Headers"]
+	path = 3rdparty/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "3rdparty/fmtlib"]
+	path = 3rdparty/fmtlib
+	url = https://github.com/fmtlib/fmt.git
+[submodule "3rdparty/Vulkan-Loader"]
+	path = 3rdparty/Vulkan-Loader
+	url = https://github.com/KhronosGroup/Vulkan-Loader.git
+[submodule "3rdparty/glfw"]
+	path = 3rdparty/glfw
+	url = https://github.com/glfw/glfw.git
